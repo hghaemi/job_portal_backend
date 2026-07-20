@@ -13,7 +13,7 @@ class JobCategoryAdmin(admin.ModelAdmin):
 @admin.register(JobPosting)
 class JobPostingAdmin(admin.ModelAdmin):
     list_display = ("title", "company", "category", "job_type", "status",
-                    "location", "vacancies", "application_deadline", "created_at",)     
+                    "location", "application_deadline", "created_at",)     
     
     list_filter = ("status", "job_type", "experience_level", "is_remote", "category")
     search_fields = ("title", "description", "company__email", "location")

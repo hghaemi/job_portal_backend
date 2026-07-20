@@ -37,7 +37,11 @@ class JobApplicationViewSet(viewsets.ModelViewSet):
         base = JobApplication.objects.select_related("job", "applicant", "job__company")
 
         if getattr(user, "is_jobseeker", False):
-            return base.filter(applicant=user)
+            qs = base.filter(applicant=user)
+            job_id = self.request.query_params.get("job")
+            if job_id:
+                qs = qs.filter(job_id=job_id)
+            return qs
         if getattr(user, "is_company", False):
             qs = base.filter(job__company=user)
             job_id = self.request.query_params.get("job")

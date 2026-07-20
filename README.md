@@ -75,7 +75,6 @@ Each posting contains information including:
 * Employment type
 * Experience level
 * Salary range
-* Number of vacancies
 * Application deadline
 * Status
 

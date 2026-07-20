@@ -48,7 +48,10 @@ class JobPosting(models.Model):
     requirements = models.TextField(blank=True)
     responsibilities = models.TextField(blank=True)
 
-    location = models.CharField(max_length=150)
+    location = models.CharField(
+        max_length=150, blank=True, help_text="Optional when is_remote=True."
+    )
+    
     is_remote = models.BooleanField(default=False)
 
     job_type = models.CharField(max_length=20, choices=JobType.choices, default=JobType.FULL_TIME)
@@ -60,7 +63,6 @@ class JobPosting(models.Model):
     salary_max = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     salary_is_visible = models.BooleanField(default=True)
 
-    vacancies = models.PositiveSmallIntegerField(default=1)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)
 
     application_deadline = models.DateField(null=True, blank=True)

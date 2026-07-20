@@ -15,16 +15,25 @@ class JobCategorySerializer(serializers.ModelSerializer):
 
 class JobPostingListSerializer(serializers.ModelSerializer):
     company_name = serializers.CharField(source="company.company_profile.company_name", read_only=True)
+    company_logo = serializers.SerializerMethodField()
     category_name = serializers.CharField(source="category.name", read_only=True, default=None)
     applications_count = serializers.IntegerField(read_only=True, default=0)
 
     class Meta:
         model = JobPosting
         fields = (
-            "id", "title", "company_name", "category_name", "location", "is_remote",
+            "id", "title", "company_name", "company_logo", "category_name", "location", "is_remote",
             "job_type", "experience_level", "salary_min", "salary_max", "salary_is_visible",
-            "vacancies", "status", "application_deadline", "applications_count", "created_at",
+            "status", "application_deadline", "applications_count", "created_at",
         )
+
+    def get_company_logo(self, obj):
+        profile = getattr(obj.company, "company_profile", None)
+        if profile and profile.logo:
+            request = self.context.get("request")
+            url = profile.logo.url
+            return request.build_absolute_uri(url) if request else url
+        return None
 
 
 class JobPostingDetailSerializer(serializers.ModelSerializer):
@@ -38,17 +47,23 @@ class JobPostingDetailSerializer(serializers.ModelSerializer):
             "id", "company", "company_detail", "category", "title", "description",
             "requirements", "responsibilities", "location", "is_remote", "job_type",
             "experience_level", "salary_min", "salary_max", "salary_is_visible",
-            "vacancies", "status", "application_deadline", "applications_count",
+            "status", "application_deadline", "applications_count",
             "created_at", "updated_at", "published_at",
         )
         read_only_fields = ("id", "company", "created_at", "updated_at", "published_at")
 
     def validate(self, attrs):
+        is_remote = attrs.get("is_remote", getattr(self.instance, "is_remote", False))
+        location = attrs.get("location", getattr(self.instance, "location", ""))
         salary_min = attrs.get("salary_min", getattr(self.instance, "salary_min", None))
         salary_max = attrs.get("salary_max", getattr(self.instance, "salary_max", None))
         if salary_min is not None and salary_max is not None and salary_min > salary_max:
             raise serializers.ValidationError(
                 {"salary_min": "salary_min cannot be greater than salary_max."}
+            )
+        if not is_remote and not location:
+            raise serializers.ValidationError(
+                {"location": "Location is required unless the job is remote."}
             )
         return attrs
 
