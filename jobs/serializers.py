@@ -13,11 +13,20 @@ class JobCategorySerializer(serializers.ModelSerializer):
         fields = ("id", "name", "slug")
 
 
+def _is_owning_company(obj, request):
+    user = getattr(request, "user", None)
+    return bool(
+        user
+        and getattr(user, "is_company", False)
+        and obj.company_id == user.id
+    )
+
+
 class JobPostingListSerializer(serializers.ModelSerializer):
     company_name = serializers.CharField(source="company.company_profile.company_name", read_only=True)
     company_logo = serializers.SerializerMethodField()
     category_name = serializers.CharField(source="category.name", read_only=True, default=None)
-    applications_count = serializers.IntegerField(read_only=True, default=0)
+    applications_count = serializers.SerializerMethodField()
 
     class Meta:
         model = JobPosting
@@ -35,11 +44,17 @@ class JobPostingListSerializer(serializers.ModelSerializer):
             return request.build_absolute_uri(url) if request else url
         return None
 
+    def get_applications_count(self, obj):
+        request = self.context.get("request")
+        if _is_owning_company(obj, request):
+            return getattr(obj, "applications_count", 0)
+        return 0
+
 
 class JobPostingDetailSerializer(serializers.ModelSerializer):
     company = serializers.PrimaryKeyRelatedField(read_only=True)
     company_detail = CompanyPublicSerializer(source="company.company_profile", read_only=True)
-    applications_count = serializers.IntegerField(read_only=True, default=0)
+    applications_count = serializers.SerializerMethodField()
 
     class Meta:
         model = JobPosting
@@ -51,6 +66,12 @@ class JobPostingDetailSerializer(serializers.ModelSerializer):
             "created_at", "updated_at", "published_at",
         )
         read_only_fields = ("id", "company", "created_at", "updated_at", "published_at")
+
+    def get_applications_count(self, obj):
+        request = self.context.get("request")
+        if _is_owning_company(obj, request):
+            return getattr(obj, "applications_count", 0)
+        return 0
 
     def validate(self, attrs):
         is_remote = attrs.get("is_remote", getattr(self.instance, "is_remote", False))
@@ -64,6 +85,12 @@ class JobPostingDetailSerializer(serializers.ModelSerializer):
         if not is_remote and not location:
             raise serializers.ValidationError(
                 {"location": "Location is required unless the job is remote."}
+            )
+
+        application_deadline = attrs.get("application_deadline")
+        if self.instance is None and application_deadline and application_deadline < timezone.now().date():
+            raise serializers.ValidationError(
+                {"application_deadline": "Application deadline cannot be in the past."}
             )
         return attrs
 

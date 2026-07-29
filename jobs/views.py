@@ -1,4 +1,5 @@
-from django.db.models import Count, Q, Value, IntegerField
+from django.db.models import Count, Q
+from django.utils import timezone
 from rest_framework import viewsets, permissions, generics
 from rest_framework.exceptions import PermissionDenied
 
@@ -39,43 +40,25 @@ class JobPostingViewSet(viewsets.ModelViewSet):
         return JobPostingDetailSerializer
 
     def get_queryset(self):
+        qs = (
+            JobPosting.objects.select_related("company", "company__company_profile", "category")
+            .annotate(applications_count=Count("applications"))
+        )
         user = self.request.user
 
-        qs = JobPosting.objects.select_related(
-            "company",
-            "company__company_profile",
-            "category",
-        )
-
-        if (
-            self.action == "list"
-            and self.request.query_params.get("mine") == "1"
-        ):
-            if not getattr(user, "is_company", False):
-                raise PermissionDenied("Only companies can view their own postings.")
-
-            return (
-                qs.filter(company=user)
-                .annotate(applications_count=Count("applications"))
-            )
-
-        qs = qs.annotate(
-            applications_count=Value(
-                0,
-                output_field=IntegerField(),
-            )
-        )
-
         if self.action == "list":
-            return qs.filter(status=JobPosting.Status.PUBLISHED)
+            if self.request.query_params.get("mine") == "1":
+                if not getattr(user, "is_company", False):
+                    raise PermissionDenied("Only companies can view their own postings.")
+                return qs.filter(company=user)
+
+            return qs.filter(status=JobPosting.Status.PUBLISHED).exclude(
+                application_deadline__lt=timezone.now().date()
+            )
 
         if getattr(user, "is_company", False):
-            return qs.filter(
-                Q(status=JobPosting.Status.PUBLISHED) | Q(company=user)
-            )
-
+            return qs.filter(Q(status=JobPosting.Status.PUBLISHED) | Q(company=user))
         return qs.filter(status=JobPosting.Status.PUBLISHED)
-    
 
     def perform_create(self, serializer):
         serializer.save(company=self.request.user)
@@ -89,6 +72,6 @@ class CompanyJobPostingListView(generics.ListAPIView):
         company_id = self.kwargs["company_id"]
         return (
             JobPosting.objects.filter(company_id=company_id, status=JobPosting.Status.PUBLISHED)
-            .select_related("company", "category")
+            .select_related("company", "company__company_profile", "category")
             .annotate(applications_count=Count("applications"))
         )
