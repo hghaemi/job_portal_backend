@@ -3,6 +3,7 @@ from rest_framework import serializers
 from jobs.models import JobPosting
 from jobs.serializers import JobPostingListSerializer
 from accounts.serializers import JobSeekerProfileSerializer
+from django.utils import timezone
 
 from .models import JobApplication, ApplicationStatusHistory
 
@@ -19,9 +20,16 @@ class JobApplicationCreateSerializer(serializers.ModelSerializer):
         fields = ("id", "job", "cover_letter", "resume_snapshot")
         read_only_fields = ("id",)
 
+    # def validate_job(self, job):
+    #     if job.status != JobPosting.Status.PUBLISHED:
+    #         raise serializers.ValidationError("This job posting is not open for applications.")
+    #     return job
+
     def validate_job(self, job):
         if job.status != JobPosting.Status.PUBLISHED:
             raise serializers.ValidationError("This job posting is not open for applications.")
+        if job.application_deadline and job.application_deadline < timezone.now().date():
+            raise serializers.ValidationError("The application deadline for this job has passed.")
         return job
 
     def validate(self, attrs):
